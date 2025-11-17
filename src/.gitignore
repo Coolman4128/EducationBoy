@@ -1,0 +1,77 @@
+# .gitignore for Avalonia UI C# projects (Visual Studio, Rider, VS Code)
+
+# Build outputs
+/bin/
+/obj/
+/out/
+/artifacts/
+/publish/
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.VC.db
+
+# Rider / JetBrains
+.idea/
+*.sln.iml
+*.DotSettings.user
+_ReSharper*/
+*.ReSharper*/
+
+# VS Code (comment out if you want to commit workspace settings)
+.vscode/
+
+# NuGet / paket
+packages/
+.nuget/
+*.nupkg
+project.lock.json
+paket-files/
+paket.dependencies
+paket.lock
+
+# dotnet / SDK
+*.runtimeconfig.dev.json
+*.deps.json
+
+# Test results / coverage
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+coverage/
+coverage.*
+
+# Logs, temp, tooling
+*.log
+*.tmp
+*.temp
+.vscode-test/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Database / local caches
+*.db
+*.db-shm
+*.db-wal
+
+# Secrets / local settings (adjust if you intentionally check them in)
+secrets.json
+secret.json
+
+# Common IDE / tooling artifacts
+*.userprefs
+*.pidb
+*.mdb
+
+# Avalonia/tooling caches (if present)
+.avalonia/
+.avalonia-cache/
+
