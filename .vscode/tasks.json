@@ -1,0 +1,32 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Rebuild with unsafe code enabled",
+			"type": "shell",
+			"command": "dotnet build src/EducationBoy.csproj",
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Rebuild with unsafe code enabled (fixed)",
+			"type": "shell",
+			"command": "dotnet build src/EducationBoy.csproj",
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Rebuild after fixing AllowUnsafeBlocks",
+			"type": "shell",
+			"command": "dotnet build src/EducationBoy.csproj",
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "build"
+		}
+	]
+}
