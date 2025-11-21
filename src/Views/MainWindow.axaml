@@ -6,12 +6,27 @@
     Title="EducationBoy"
     x:DataType="vm:MainWindowViewModel">
 
-    <Grid Background="Black">
-        <Image
-            x:Name="FrameImage"
-            Width="320" Height="288"
-            Stretch="Uniform"
-            RenderOptions.BitmapInterpolationMode="None"
-            Source="{Binding FramebufferBitmap}" />
+    <Grid Background="Black" RowDefinitions="Auto,*">
+        <StackPanel Orientation="Horizontal" Spacing="12" Margin="12" VerticalAlignment="Center">
+            <Button
+                Content="Load ROM"
+                Command="{Binding LoadRomCommand}"
+                Padding="14,8"
+                HorizontalAlignment="Left" />
+            <TextBlock
+                Text="{Binding LoadedRomName}"
+                VerticalAlignment="Center"
+                Foreground="White"
+                FontSize="14" />
+        </StackPanel>
+
+        <Border Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="12">
+            <Image
+                x:Name="FrameImage"
+                Width="320" Height="288"
+                Stretch="Uniform"
+                RenderOptions.BitmapInterpolationMode="None"
+                Source="{Binding FramebufferBitmap}" />
+        </Border>
     </Grid>
 </Window>

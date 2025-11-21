@@ -31,6 +31,7 @@ namespace EducationBoy.Emulator
         // Interrupt Helpers
         public bool IME; // Interrupt Master Enable
         private bool _enableIMENextCycle;
+        private bool _haltBug;
 
         // Hardware Components
         private readonly GameBoyMemory _memory;
@@ -48,20 +49,32 @@ namespace EducationBoy.Emulator
         // Functions
         public void Reset()
         {
-            A = B = C = D = E = H = L = 0;
-            F = 0;
+            A = 0x01;
+            F = 0xB0;
+            B = 0x00;
+            C = 0x13;
+            D = 0x00;
+            E = 0xD8;
+            H = 0x01;
+            L = 0x4D;
             SP = 0xFFFE;
             PC = 0x0100;
 
-            IME = false;
+            IME = true;
             _enableIMENextCycle = false;
             IsHalted = false;
             IsStopped = false;
             Cycles = 0;
+            _haltBug = false;
         }
 
         public int Step()
         {
+            if (IsHalted && PendingInterrupts != 0)
+            {
+                IsHalted = false;
+            }
+
             int cycles = 0;
 
             // 1. Handle enabling IME if requested
@@ -87,7 +100,7 @@ namespace EducationBoy.Emulator
             }
 
             // 4. Fetch, Decode, Execute
-            byte opcode = _memory.ReadByte(PC++);
+            byte opcode = FetchOpcode();
             cycles = ExecuteInstruction(opcode);
             Cycles += cycles;
             return cycles;
@@ -389,7 +402,14 @@ namespace EducationBoy.Emulator
                 case >= 0x40 and <= 0x7F:
                     if (opcode == 0x76) // HALT
                     {
-                        IsHalted = true;
+                        if (IME || PendingInterrupts == 0)
+                        {
+                            IsHalted = true;
+                        }
+                        else
+                        {
+                            _haltBug = true;
+                        }
                         return 4;
                     }
                     else
@@ -780,6 +800,8 @@ namespace EducationBoy.Emulator
                     return 16;
 
             }
+
+            throw new InvalidOperationException($"Unhandled opcode 0x{opcode:X2}");
         }
 
         // =========================
@@ -853,11 +875,11 @@ namespace EducationBoy.Emulator
         // =========================
         // Interrupts
         // =========================
+        private byte PendingInterrupts => (byte)(_memory.InterruptEnable & _memory.InterruptFlag);
+
         private bool HandleInterrupts(ref int cycles)
         {
-            byte ie = _memory.ReadByte(0xFFFF);
-            byte iff = _memory.ReadByte(0xFF0F);
-            byte pending = (byte)(ie & iff);
+            byte pending = PendingInterrupts;
             if (pending == 0)
                 return false;
 
@@ -882,7 +904,7 @@ namespace EducationBoy.Emulator
             IME = false;
 
             // Clear IF flag bit
-            byte newIf = (byte)(iff & ~(1 << index));
+            byte newIf = (byte)(_memory.InterruptFlag & ~(1 << index));
             _memory.WriteByte(0xFF0F, newIf);
 
             // Push PC and jump to vector
@@ -896,6 +918,17 @@ namespace EducationBoy.Emulator
         // =========================
         // Helpers: memory / immediates
         // =========================
+        private byte FetchOpcode()
+        {
+            if (_haltBug)
+            {
+                _haltBug = false;
+                return _memory.ReadByte(PC);
+            }
+
+            return _memory.ReadByte(PC++);
+        }
+
         private byte ReadIMM8()
         {
             return _memory.ReadByte(PC++);

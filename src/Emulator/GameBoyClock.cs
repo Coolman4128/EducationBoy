@@ -15,22 +15,26 @@ public class GameBoyClock
     private volatile bool _running;
     private GameBoyCPU _cpu;
     private GameBoyPPU _ppu;
+    private GameBoyMemory _memory;
 
-    public GameBoyClock(GameBoyCPU cpu, GameBoyPPU ppu)
+    public GameBoyClock(GameBoyCPU cpu, GameBoyPPU ppu, GameBoyMemory memory)
     {
         _cpu = cpu;
         _ppu = ppu;
+        _memory = memory;
         _stopwatch = new Stopwatch();
     }
 
 
     public void Start()
     {
+        if (_running)
+            return;
+
         _running = true;
         _stopwatch.Restart();
         long lastTime = _stopwatch.ElapsedTicks;
         double cyclesRemainder = 0.0;
-        int cyclesThisFrame = 0;
 
         Task.Run(() =>
         {
@@ -45,27 +49,23 @@ public class GameBoyClock
                     cyclesRemainder = cyclesToRun;
                     continue;
                 }
-                int wholeCycles = (int)cyclesToRun;
-                cyclesRemainder = cyclesToRun - wholeCycles;
+                int cyclesBudget = (int)cyclesToRun;
+                cyclesRemainder = cyclesToRun - cyclesBudget;
 
-                if (wholeCycles == 0)
+                if (cyclesBudget == 0)
                 {
                     continue;
                 }
-                
+
 
                 int cyclesRan = 0;
-                while (cyclesRan < wholeCycles)
+                while (cyclesRan < cyclesBudget && _running)
                 {
                     int stepCycles = _cpu.Step();
                     cyclesRan += stepCycles;
+                    _memory.Step(stepCycles);
+                    _ppu.Step(stepCycles);
                 }
-                cyclesThisFrame += cyclesRan;
-                int overshoot = cyclesRan - wholeCycles;
-                cyclesRemainder -= overshoot; // Compensate for next tick
-
-                _ppu.Step(cyclesRan);
-
             }
         });
     }

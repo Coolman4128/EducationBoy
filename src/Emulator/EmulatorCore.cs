@@ -17,8 +17,17 @@ public class EmulatorCore
         Memory = new GameBoyMemory();
         CPU = new GameBoyCPU(Memory);
         PPU = new GameBoyPPU(Memory, this);
-        Clock = new GameBoyClock(CPU, PPU);
+        Clock = new GameBoyClock(CPU, PPU, Memory);
         ScreenRendererViewModel = screenRendererViewModel;
+    }
+
+    public void LoadRom(byte[] romImage)
+    {
+        Clock.Stop();
+        Memory.Reset(romImage);
+        CPU.Reset();
+        PPU.Reset();
+        Clock.Start();
     }
 
     public void TriggerScreenRerender(byte [] framebuffer)

@@ -1,10 +1,16 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using Avalonia;
-using Avalonia.Data;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Platform.Storage;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using EducationBoy.Emulator;
 
@@ -18,6 +24,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private const int Height = 144;
     private const int BytesPerPixel = 4;
     private readonly byte[] _framebuffer = new byte[Width * Height * BytesPerPixel];
+    private string _loadedRomName = "No ROM loaded";
 
     public EmulatorCore Emulator { get; private set; }
 
@@ -30,12 +37,6 @@ public partial class MainWindowViewModel : ViewModelBase
             AlphaFormat.Premul);
 
         Emulator = new EmulatorCore(this);
-        Emulator.Clock.Start();
-
-        //Functions used to test memory
-        // Emulator.Memory.FillTestScreen();
-        // Emulator.Memory.WriteByte(0xFF40, 0x91); // LCDC: LCD on, BG on, BG map 0, tile data 0x8000
-        // Emulator.Memory.WriteByte(0xFF47, 0xE4); // BGP: 11 10 01 00
 
     }
 
@@ -48,12 +49,48 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
 
-    [RelayCommand]
-    public void LoadRom()
+    public string LoadedRomName
     {
-        
+        get => _loadedRomName;
+        private set => SetProperty(ref _loadedRomName, value);
     }
 
-   
-   
+    [RelayCommand]
+    public async Task LoadRom()
+    {
+        var lifetime = Avalonia.Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime;
+        var window = lifetime?.MainWindow;
+        if (window is null)
+        {
+            return;
+        }
+
+        var options = new FilePickerOpenOptions
+        {
+            Title = "Load ROM",
+            AllowMultiple = false,
+            FileTypeFilter = new List<FilePickerFileType>
+            {
+                new FilePickerFileType("Game Boy ROM") { Patterns = new[] { "*.gb", "*.gbc", "*.bin" } },
+                FilePickerFileTypes.All
+            }
+        };
+
+        var selection = await window.StorageProvider.OpenFilePickerAsync(options);
+        if (selection is null || selection.Count == 0)
+        {
+            return;
+        }
+
+        var file = selection[0];
+        await using var stream = await file.OpenReadAsync();
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+
+        Emulator.LoadRom(ms.ToArray());
+        LoadedRomName = file.Name;
+    }
+
+
+
 }
