@@ -33,6 +33,7 @@ public class GameBoyClock
 
         _running = true;
         _stopwatch.Restart();
+        EmulatorLogger.BeginInstructionCapture();
         long lastTime = _stopwatch.ElapsedTicks;
         double cyclesRemainder = 0.0;
 

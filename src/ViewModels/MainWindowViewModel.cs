@@ -87,7 +87,8 @@ public partial class MainWindowViewModel : ViewModelBase
         using var ms = new MemoryStream();
         await stream.CopyToAsync(ms);
 
-        Emulator.LoadRom(ms.ToArray());
+        var romBytes = ms.ToArray();
+        Emulator.LoadRom(romBytes, file.Name);
         LoadedRomName = file.Name;
     }
 

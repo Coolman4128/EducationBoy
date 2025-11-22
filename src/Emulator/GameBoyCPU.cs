@@ -29,8 +29,8 @@ namespace EducationBoy.Emulator
         bool FlagC { get => (F & 0x10) != 0; set => F = value ? (byte)(F | 0x10) : (byte)(F & ~0x10); }
 
         // Interrupt Helpers
-        public bool IME; // Interrupt Master Enable
-        private bool _enableIMENextCycle;
+        public bool IME;        // Interrupt Master Enable
+        private int _imeDelay;  // EI delay counter (0 = no pending EI)
         private bool _haltBug;
 
         // Hardware Components
@@ -60,8 +60,8 @@ namespace EducationBoy.Emulator
             SP = 0xFFFE;
             PC = 0x0100;
 
-            IME = true;
-            _enableIMENextCycle = false;
+            IME = false;         
+            _imeDelay = 0;
             IsHalted = false;
             IsStopped = false;
             Cycles = 0;
@@ -76,13 +76,6 @@ namespace EducationBoy.Emulator
             }
 
             int cycles = 0;
-
-            // 1. Handle enabling IME if requested
-            if (_enableIMENextCycle)
-            {
-                IME = true;
-                _enableIMENextCycle = false;
-            }
 
             // 2. Handle Interrupts
             if (HandleInterrupts(ref cycles))
@@ -103,6 +96,15 @@ namespace EducationBoy.Emulator
             byte opcode = FetchOpcode();
             cycles = ExecuteInstruction(opcode);
             Cycles += cycles;
+
+            // Handle delayed IME enable from EI
+            if (_imeDelay > 0)
+            {
+                _imeDelay--;
+                if (_imeDelay == 0)
+                    IME = true;
+            }
+
             return cycles;
         }
 
@@ -741,7 +743,7 @@ namespace EducationBoy.Emulator
 
                 case 0xF3: // DI
                     IME = false;
-                    _enableIMENextCycle = false;
+                    _imeDelay = 0;   // cancel any pending EI
                     return 4;
 
                 case 0xF4: // — (unused)
@@ -784,7 +786,8 @@ namespace EducationBoy.Emulator
                     }
 
                 case 0xFB: // EI
-                    _enableIMENextCycle = true;
+                    // Enable IME *after* the next instruction completes
+                    _imeDelay = 2;
                     return 4;
 
                 case 0xFC: // — (unused)
@@ -798,7 +801,6 @@ namespace EducationBoy.Emulator
                 case 0xFF: // RST 38h
                     Rst(0x38);
                     return 16;
-
             }
 
             throw new InvalidOperationException($"Unhandled opcode 0x{opcode:X2}");

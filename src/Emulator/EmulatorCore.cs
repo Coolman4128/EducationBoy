@@ -16,17 +16,21 @@ public class EmulatorCore
     {
         Memory = new GameBoyMemory();
         CPU = new GameBoyCPU(Memory);
+        Memory.ConnectCpu(CPU);
         PPU = new GameBoyPPU(Memory, this);
         Clock = new GameBoyClock(CPU, PPU, Memory);
         ScreenRendererViewModel = screenRendererViewModel;
     }
 
-    public void LoadRom(byte[] romImage)
+    public void LoadRom(byte[] romImage, string? romName = null)
     {
         Clock.Stop();
+        EmulatorLogger.StartNewSession(romImage, romName);
         Memory.Reset(romImage);
+        Memory.FillTestScreen();
         CPU.Reset();
         PPU.Reset();
+        
         Clock.Start();
     }
 
