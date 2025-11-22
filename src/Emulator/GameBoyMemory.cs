@@ -15,8 +15,10 @@ public enum InterruptFlags : byte
 public class GameBoyMemory
 {
     private GameBoyCPU? _cpu;
+    private GameBoyApu? _apu;
 
     // I/O register addresses
+    private const ushort ADDR_JOYP = 0xFF00;
     private const ushort ADDR_DIV  = 0xFF04;
     private const ushort ADDR_TIMA = 0xFF05;
     private const ushort ADDR_TMA  = 0xFF06;
@@ -45,6 +47,18 @@ public class GameBoyMemory
     private readonly byte[] _oam      = new byte[0x00A0]; // FE00–FE9F
     private readonly byte[] _io       = new byte[0x0080]; // FF00–FF7F
     private readonly byte[] _hram     = new byte[0x007F]; // FF80–FFFE
+    // Joypad
+    private byte _joypadSelect; // bits 4-5 selected by writes to JOYP
+    private bool _btnRight;
+    private bool _btnLeft;
+    private bool _btnUp;
+    private bool _btnDown;
+    private bool _btnA;
+    private bool _btnB;
+    private bool _btnSelect;
+    private bool _btnStart;
+
+
 
     private byte _interruptEnable; // IE
     private byte _interruptFlags;  // IF
@@ -79,6 +93,11 @@ public class GameBoyMemory
         _cpu = cpu;
     }
 
+    public void ConnectApu(GameBoyApu apu)
+    {
+        _apu = apu;
+    }
+
     public void Reset(byte[] romImage)
     {
         romImage ??= Array.Empty<byte>();
@@ -93,6 +112,10 @@ public class GameBoyMemory
         Array.Clear(_hram);
 
         LoadRomBanks(romImage);
+
+        _joypadSelect = 0x30;
+        _btnRight = _btnLeft = _btnUp = _btnDown = false;
+        _btnA = _btnB = _btnSelect = _btnStart = false;
 
         _interruptEnable = 0;
         _interruptFlags  = 0;
@@ -178,6 +201,7 @@ public class GameBoyMemory
         WriteByte(ADDR_TMA,  0x00);
         WriteByte(ADDR_TAC,  0x00);
         WriteByte(ADDR_IF,   0xE1);
+        WriteByte(ADDR_JOYP, 0xCF);
     }
 
     public byte ReadByte(ushort address)
@@ -227,9 +251,6 @@ public class GameBoyMemory
 
             case ADDR_IE:
                 return _interruptEnable;
-
-            default:
-                return 0xFF;
         }
     }
 
@@ -294,6 +315,12 @@ public class GameBoyMemory
     {
         switch (address)
         {
+            case >= 0xFF10 and <= 0xFF3F:
+                return _apu?.ReadRegister(address) ?? _io[address - 0xFF00];
+
+            case ADDR_JOYP:
+                return ComposeJoypadState();
+
             case ADDR_DIV:
                 return _div;
 
@@ -330,6 +357,16 @@ public class GameBoyMemory
     {
         switch (address)
         {
+            case >= 0xFF10 and <= 0xFF3F:
+                _io[address - 0xFF00] = value;
+                _apu?.WriteRegister(address, value);
+                break;
+
+            case ADDR_JOYP:
+                _joypadSelect = (byte)(value & 0x30);
+                UpdateJoypadRegister();
+                break;
+
             case ADDR_DIV:
             {
                 // Writing to DIV resets it, but may cause a falling edge
@@ -561,6 +598,72 @@ public class GameBoyMemory
         }
     }
 
+    public void SetButtonState(GameBoyButton button, bool pressed)
+    {
+        bool wasPressed = button switch
+        {
+            GameBoyButton.Right  => _btnRight,
+            GameBoyButton.Left   => _btnLeft,
+            GameBoyButton.Up     => _btnUp,
+            GameBoyButton.Down   => _btnDown,
+            GameBoyButton.A      => _btnA,
+            GameBoyButton.B      => _btnB,
+            GameBoyButton.Select => _btnSelect,
+            GameBoyButton.Start  => _btnStart,
+            _ => false
+        };
+
+        switch (button)
+        {
+            case GameBoyButton.Right:  _btnRight  = pressed; break;
+            case GameBoyButton.Left:   _btnLeft   = pressed; break;
+            case GameBoyButton.Up:     _btnUp     = pressed; break;
+            case GameBoyButton.Down:   _btnDown   = pressed; break;
+            case GameBoyButton.A:      _btnA      = pressed; break;
+            case GameBoyButton.B:      _btnB      = pressed; break;
+            case GameBoyButton.Select: _btnSelect = pressed; break;
+            case GameBoyButton.Start:  _btnStart  = pressed; break;
+        }
+
+        if (pressed && !wasPressed)
+        {
+            RequestInterrupt(InterruptFlags.Joypad);
+        }
+
+        UpdateJoypadRegister();
+    }
+
+    private void UpdateJoypadRegister()
+    {
+        _io[ADDR_JOYP - 0xFF00] = ComposeJoypadState();
+    }
+
+    private byte ComposeJoypadState()
+    {
+        // Bits 4-5 reflect selection, bits 0-3 are active-low button states
+        byte value = 0x0F;
+        bool selectDirections = (_joypadSelect & 0x10) == 0;
+        bool selectButtons    = (_joypadSelect & 0x20) == 0;
+
+        if (selectDirections)
+        {
+            if (_btnRight) value &= 0x0E;
+            if (_btnLeft)  value &= 0x0D;
+            if (_btnUp)    value &= 0x0B;
+            if (_btnDown)  value &= 0x07;
+        }
+
+        if (selectButtons)
+        {
+            if (_btnA)      value &= 0x0E;
+            if (_btnB)      value &= 0x0D;
+            if (_btnSelect) value &= 0x0B;
+            if (_btnStart)  value &= 0x07;
+        }
+
+        return (byte)(0xC0 | _joypadSelect | value);
+    }
+
     /// <summary>
     /// Fill VRAM with a simple test pattern and tilemap.
     /// </summary>
@@ -597,3 +700,4 @@ public class GameBoyMemory
         WriteByte(ADDR_BGP, 0xE4);
     }
 }
+

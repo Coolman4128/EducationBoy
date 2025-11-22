@@ -60,6 +60,11 @@ namespace EducationBoy.Emulator
             SP = 0xFFFE;
             PC = 0x0100;
 
+            FlagZ = true;
+            FlagN = false;
+            FlagH = false;
+            FlagC = false;
+
             IME = false;         
             _imeDelay = 0;
             IsHalted = false;

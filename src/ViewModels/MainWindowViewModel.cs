@@ -23,8 +23,10 @@ public partial class MainWindowViewModel : ViewModelBase
     private const int Width = 160;
     private const int Height = 144;
     private const int BytesPerPixel = 4;
+    private const double MaxVolume = 0.25;
     private readonly byte[] _framebuffer = new byte[Width * Height * BytesPerPixel];
     private string _loadedRomName = "No ROM loaded";
+    private double _volume = 0.1;
 
     public EmulatorCore Emulator { get; private set; }
 
@@ -37,7 +39,7 @@ public partial class MainWindowViewModel : ViewModelBase
             AlphaFormat.Premul);
 
         Emulator = new EmulatorCore(this);
-
+        Emulator.SetVolume((float)_volume);
     }
 
     public void UpdateFrame(byte[] framebuffer)
@@ -53,6 +55,19 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         get => _loadedRomName;
         private set => SetProperty(ref _loadedRomName, value);
+    }
+
+    public double Volume
+    {
+        get => _volume;
+        set
+        {
+            double clamped = Math.Clamp(value, 0, MaxVolume);
+            if (SetProperty(ref _volume, clamped))
+            {
+                Emulator.SetVolume((float)_volume);
+            }
+        }
     }
 
     [RelayCommand]

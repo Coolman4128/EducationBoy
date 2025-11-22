@@ -1,6 +1,6 @@
 using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
-using Avalonia.Data;
 
 namespace EducationBoy.Emulator;
 
@@ -16,12 +16,14 @@ public class GameBoyClock
     private GameBoyCPU _cpu;
     private GameBoyPPU _ppu;
     private GameBoyMemory _memory;
+    private GameBoyApu _apu;
 
-    public GameBoyClock(GameBoyCPU cpu, GameBoyPPU ppu, GameBoyMemory memory)
+    public GameBoyClock(GameBoyCPU cpu, GameBoyPPU ppu, GameBoyMemory memory, GameBoyApu apu)
     {
         _cpu = cpu;
         _ppu = ppu;
         _memory = memory;
+        _apu = apu;
         _stopwatch = new Stopwatch();
     }
 
@@ -34,39 +36,53 @@ public class GameBoyClock
         _running = true;
         _stopwatch.Restart();
         EmulatorLogger.BeginInstructionCapture();
-        long lastTime = _stopwatch.ElapsedTicks;
-        double cyclesRemainder = 0.0;
+        long ticksPerFrame = (long)(Stopwatch.Frequency / FrameRate);
+        long nextFrameTick = _stopwatch.ElapsedTicks + ticksPerFrame;
 
         Task.Run(() =>
         {
+            int cyclesThisFrame = 0;
+
             while (_running)
             {
-                long now = _stopwatch.ElapsedTicks;
-                double elapsedSeconds = (now - lastTime) / (double)Stopwatch.Frequency;
-                lastTime = now;
-                double cyclesToRun = elapsedSeconds * ClockSpeedHz + cyclesRemainder;
-                if (cyclesToRun < 0)
-                {
-                    cyclesRemainder = cyclesToRun;
-                    continue;
-                }
-                int cyclesBudget = (int)cyclesToRun;
-                cyclesRemainder = cyclesToRun - cyclesBudget;
-
-                if (cyclesBudget == 0)
-                {
-                    continue;
-                }
-
-
-                int cyclesRan = 0;
-                while (cyclesRan < cyclesBudget && _running)
+                while (_running && cyclesThisFrame < CyclesPerFrame)
                 {
                     int stepCycles = _cpu.Step();
-                    cyclesRan += stepCycles;
+                    cyclesThisFrame += stepCycles;
                     _memory.Step(stepCycles);
                     _ppu.Step(stepCycles);
+                    _apu.Step(stepCycles);
                 }
+
+                if (!_running)
+                    break;
+
+                long now = _stopwatch.ElapsedTicks;
+                long sleepTicks = nextFrameTick - now;
+                if (sleepTicks > 0)
+                {
+                    int sleepMs = (int)(sleepTicks * 1000 / Stopwatch.Frequency);
+                    if (sleepMs > 0)
+                    {
+                        Thread.Sleep(sleepMs);
+                    }
+
+                    // Short spin to finish the frame without oversleeping
+                    while (_stopwatch.ElapsedTicks < nextFrameTick)
+                    {
+                        Thread.SpinWait(50);
+                    }
+                }
+
+                nextFrameTick += ticksPerFrame;
+
+                // If we fell more than a frame behind, drop the backlog instead of trying to catch up
+                if (_stopwatch.ElapsedTicks > nextFrameTick + ticksPerFrame)
+                {
+                    nextFrameTick = _stopwatch.ElapsedTicks + ticksPerFrame;
+                }
+
+                cyclesThisFrame = 0;
             }
         });
     }

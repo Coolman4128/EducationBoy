@@ -1,31 +1,43 @@
-using System;
-using System.Runtime.InteropServices;
-using Avalonia;
+using System.Collections.Generic;
 using Avalonia.Controls;
-using Avalonia.Media.Imaging;
-using Avalonia.Platform;
-using Avalonia.Threading;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using EducationBoy.Emulator;
+using EducationBoy.ViewModels;
 
 namespace EducationBoy.Views;
 
 public partial class MainWindow : Window
 {
-
+    private static readonly Dictionary<Key, GameBoyButton> KeyMap = new()
+    {
+        { Key.Right, GameBoyButton.Right },
+        { Key.Left,  GameBoyButton.Left },
+        { Key.Up,    GameBoyButton.Up },
+        { Key.Down,  GameBoyButton.Down },
+        { Key.Z,     GameBoyButton.A },
+        { Key.X,     GameBoyButton.B },
+        { Key.Enter, GameBoyButton.Start },
+        { Key.RightShift, GameBoyButton.Select },
+        { Key.Space, GameBoyButton.Select }
+    };
 
     public MainWindow()
     {
         InitializeComponent();
 
-        // Subscribe to bitmap property change to invalidate the Image
-        this.DataContextChanged += (_, __) => SubscribeBitmapInvalidation();
+        AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
+        AddHandler(KeyUpEvent, OnKeyUp, RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
+        Opened += (_, _) => Focus();
+
+        DataContextChanged += (_, __) => SubscribeBitmapInvalidation();
         SubscribeBitmapInvalidation();
     }
 
     private void SubscribeBitmapInvalidation()
     {
-        if (DataContext is EducationBoy.ViewModels.MainWindowViewModel vm && FrameImage is not null)
+        if (DataContext is MainWindowViewModel vm && FrameImage is not null)
         {
-            // Unsubscribe previous if needed (not strictly necessary here)
             vm.PropertyChanged += (s, e) =>
             {
                 if (e.PropertyName == nameof(vm.FramebufferBitmap))
@@ -33,12 +45,36 @@ public partial class MainWindow : Window
                     FrameImage.InvalidateVisual();
                 }
             };
-            // Also invalidate immediately in case already updated
             FrameImage.InvalidateVisual();
         }
     }
 
+    private void OnKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (!TryMapButton(e.Key, out var button))
+            return;
 
+        if (DataContext is MainWindowViewModel vm)
+        {
+            vm.Emulator.SetButtonState(button, true);
+            e.Handled = true;
+        }
+    }
 
+    private void OnKeyUp(object? sender, KeyEventArgs e)
+    {
+        if (!TryMapButton(e.Key, out var button))
+            return;
 
+        if (DataContext is MainWindowViewModel vm)
+        {
+            vm.Emulator.SetButtonState(button, false);
+            e.Handled = true;
+        }
+    }
+
+    private static bool TryMapButton(Key key, out GameBoyButton button)
+    {
+        return KeyMap.TryGetValue(key, out button);
+    }
 }
